@@ -1,0 +1,485 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { v4 as uuidv4 } from 'uuid';
+import { toast } from 'sonner';
+
+// Base field type that all fields extend
+interface BaseFormField {
+  id: string;
+  type: string;
+  label: string;
+  description?: string;
+  required?: boolean;
+  className?: string;
+  style?: React.CSSProperties;
+  visibilityCondition?: Record<string, unknown>;
+  validation?: Record<string, unknown>;
+}
+
+interface TextField extends BaseFormField {
+  type: 'text' | 'email' | 'phone' | 'hidden';
+  placeholder?: string;
+  defaultValue?: string;
+}
+
+interface TextareaField extends BaseFormField {
+  type: 'textarea';
+  placeholder?: string;
+  defaultValue?: string;
+  rows?: number;
+}
+
+interface CheckboxField extends BaseFormField {
+  type: 'checkbox';
+  defaultValue?: boolean;
+  labelPosition?: 'left' | 'right';
+}
+
+interface SelectField extends BaseFormField {
+  type: 'select';
+  options: Array<{ label: string; value: string }>;
+  multiple?: boolean;
+  defaultValue?: string | string[];
+}
+
+interface NumberField extends BaseFormField {
+  type: 'number';
+  min?: number;
+  max?: number;
+  step?: number;
+  defaultValue?: number;
+}
+
+interface DateField extends BaseFormField {
+  type: 'date';
+  minDate?: string;
+  maxDate?: string;
+  defaultValue?: string;
+}
+
+interface FileField extends BaseFormField {
+  type: 'file';
+  accept?: string;
+  multiple?: boolean;
+  maxSize?: number;
+}
+
+interface CalculationField extends BaseFormField {
+  type: 'calculation';
+  formula: string;
+  precision?: number;
+  readOnly?: boolean;
+  defaultValue?: string | number;
+}
+
+interface SectionField extends BaseFormField {
+  type: 'section';
+  collapsible?: boolean;
+  defaultCollapsed?: boolean;
+}
+
+interface PageBreakField extends BaseFormField {
+  type: 'pagebreak';
+  nextButtonText?: string;
+  previousButtonText?: string;
+  showPageNumbers?: boolean;
+}
+
+type FormField = 
+  | TextField
+  | TextareaField
+  | CheckboxField
+  | SelectField
+  | NumberField
+  | DateField
+  | FileField
+  | CalculationField
+  | SectionField
+  | PageBreakField;
+
+interface FormSettings {
+  allowedDomains: string[];
+  notificationEmails: string[];
+  required?: boolean;
+  placeholder?: string;
+}
+
+const FormBuilder: React.FC = () => {
+  // Get form ID from URL
+  const { id: idParam, slug } = useParams<{ id?: string; slug?: string }>();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  
+  // Form state
+  const [fields, setFields] = useState<FormField[]>([]);
+  const [settings, setSettings] = useState<FormSettings>({
+    allowedDomains: [],
+    notificationEmails: []
+  });
+  
+  // UI state
+  const [activeTab, setActiveTab] = useState('fields');
+  const [isSaving, setIsSaving] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [currentField, setCurrentField] = useState<number | null>(null);
+
+  // Derive the actual ID (handle both old and new URL formats)
+  const id = idParam || (slug ? slug.split('-').pop() : undefined);
+
+  // Fetch form data if editing
+  const { data: form, isLoading, error } = useQuery({
+    queryKey: ['form', id],
+    queryFn: async () => {
+      if (!id) return null;
+      
+      const { data, error } = await supabase
+        .from('forms')
+        .select('*')
+        .eq('id', id)
+        .single();
+        
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  // Update form state when form data is loaded
+  useEffect(() => {
+    if (form) {
+      setFields(form.fields || []);
+      setSettings({
+        allowedDomains: form.allowed_domains || [],
+        notificationEmails: form.notification_emails || [],
+        required: form.required,
+        placeholder: form.placeholder
+      });
+    }
+  }, [form]);
+
+  // Save form mutation
+  const saveForm = useMutation({
+    mutationFn: async () => {
+      setIsSaving(true);
+      try {
+        const formData = {
+          id: id || uuidv4(),
+          fields,
+          allowed_domains: settings.allowedDomains,
+          notification_emails: settings.notificationEmails,
+          required: settings.required,
+          placeholder: settings.placeholder,
+          updated_at: new Date().toISOString()
+        };
+
+        const { error } = await supabase
+          .from('forms')
+          .upsert(formData);
+
+        if (error) throw error;
+        return formData;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    onSuccess: (data) => {
+      toast.success('Form saved successfully');
+      queryClient.invalidateQueries({ queryKey: ['forms'] });
+      if (!id) {
+        navigate(`/forms/${data.id}/edit`);
+      }
+    },
+    onError: (error) => {
+      console.error('Error saving form:', error);
+      toast.error('Failed to save form');
+    }
+  });
+
+  // Field management functions
+  const addField = (type: FormField['type'] = 'text') => {
+    const newField: FormField = {
+      id: `field-${Date.now()}`,
+      type,
+      label: `New ${type.charAt(0).toUpperCase() + type.slice(1)} Field`,
+      required: false
+    };
+    
+    setFields([...fields, newField]);
+    setCurrentField(fields.length);
+  };
+
+  const updateField = (index: number, updates: Partial<FormField>) => {
+    const updatedFields = [...fields];
+    updatedFields[index] = { ...updatedFields[index], ...updates };
+    setFields(updatedFields);
+  };
+
+  const deleteField = (index: number) => {
+    const newFields = [...fields];
+    newFields.splice(index, 1);
+    setFields(newFields);
+    
+    if (currentField === index) {
+      setCurrentField(null);
+    } else if (currentField !== null && currentField > index) {
+      setCurrentField(currentField - 1);
+    }
+  };
+
+  if (isLoading) {
+    return <div>Loading form...</div>;
+  }
+
+  if (error) {
+    return <div>Error loading form: {error.message}</div>;
+  }
+
+  return (
+    <div className="flex flex-col min-h-screen">
+      <header className="border-b">
+        <div className="container flex items-center justify-between h-16 px-4">
+          <h1 className="text-xl font-semibold">
+            {id ? 'Edit Form' : 'Create New Form'}
+          </h1>
+          <div className="flex items-center space-x-4">
+            <Button variant="outline" onClick={() => navigate(-1)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => saveForm.mutate()} 
+              disabled={isSaving}
+            >
+              {isSaving ? 'Saving...' : 'Save Form'}
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 p-4">
+        <div className="container grid gap-6">
+          <Tabs defaultValue="fields" className="w-full">
+            <TabsList>
+              <TabsTrigger value="fields">Form Fields</TabsTrigger>
+              <TabsTrigger value="settings">Settings</TabsTrigger>
+              <TabsTrigger value="preview">Preview</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="fields">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="md:col-span-1 space-y-4">
+                  <h2 className="text-lg font-medium">Add Field</h2>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" onClick={() => addField('text')}>
+                      Text
+                    </Button>
+                    <Button variant="outline" onClick={() => addField('textarea')}>
+                      Textarea
+                    </Button>
+                    <Button variant="outline" onClick={() => addField('select')}>
+                      Select
+                    </Button>
+                    <Button variant="outline" onClick={() => addField('checkbox')}>
+                      Checkbox
+                    </Button>
+                    <Button variant="outline" onClick={() => addField('number')}>
+                      Number
+                    </Button>
+                    <Button variant="outline" onClick={() => addField('date')}>
+                      Date
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="md:col-span-3 space-y-4">
+                  <h2 className="text-lg font-medium">Form Preview</h2>
+                  <div className="border rounded-lg p-6 space-y-4">
+                    {fields.length === 0 ? (
+                      <p className="text-gray-500">Add fields to your form</p>
+                    ) : (
+                      fields.map((field, index) => (
+                        <div key={field.id} className="border p-4 rounded">
+                          <div className="flex justify-between items-center">
+                            <h3 className="font-medium">{field.label}</h3>
+                            <div className="space-x-2">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => setCurrentField(index)}
+                              >
+                                Edit
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => deleteField(index)}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="settings">
+              <div className="max-w-2xl space-y-6">
+                <h2 className="text-lg font-medium">Form Settings</h2>
+                
+                <div className="space-y-4">
+                  <div>
+                    <Label>Allowed Domains</Label>
+                    <div className="flex space-x-2 mt-1">
+                      <Input 
+                        placeholder="example.com"
+                        value={newDomain}
+                        onChange={(e) => setNewDomain(e.target.value)}
+                      />
+                      <Button
+                        onClick={() => {
+                          if (newDomain) {
+                            setSettings({
+                              ...settings,
+                              allowedDomains: [...settings.allowedDomains, newDomain]
+                            });
+                            setNewDomain('');
+                          }
+                        }}
+                      >
+                        Add
+                      </Button>
+                    </div>
+                    <div className="mt-2 space-y-1">
+                      {settings.allowedDomains.map((domain, index) => (
+                        <div key={index} className="flex items-center justify-between">
+                          <span>{domain}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const newDomains = [...settings.allowedDomains];
+                              newDomains.splice(index, 1);
+                              setSettings({
+                                ...settings,
+                                allowedDomains: newDomains
+                              });
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label>Notification Emails</Label>
+                    <div className="flex space-x-2 mt-1">
+                      <Input 
+                        type="email"
+                        placeholder="email@example.com"
+                        value={newEmail}
+                        onChange={(e) => setNewEmail(e.target.value)}
+                      />
+                      <Button
+                        onClick={() => {
+                          if (newEmail) {
+                            setSettings({
+                              ...settings,
+                              notificationEmails: [...settings.notificationEmails, newEmail]
+                            });
+                            setNewEmail('');
+                          }
+                        }}
+                      >
+                        Add
+                      </Button>
+                    </div>
+                    <div className="mt-2 space-y-1">
+                      {settings.notificationEmails.map((email, index) => (
+                        <div key={index} className="flex items-center justify-between">
+                          <span>{email}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const newEmails = [...settings.notificationEmails];
+                              newEmails.splice(index, 1);
+                              setSettings({
+                                ...settings,
+                                notificationEmails: newEmails
+                              });
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="preview">
+              <div className="max-w-2xl mx-auto">
+                <h2 className="text-lg font-medium mb-4">Form Preview</h2>
+                <div className="border rounded-lg p-6 space-y-4">
+                  {fields.length === 0 ? (
+                    <p className="text-gray-500">No fields added yet</p>
+                  ) : (
+                    fields.map((field) => (
+                      <div key={field.id} className="space-y-2">
+                        <Label>
+                          {field.label}
+                          {field.required && <span className="text-red-500 ml-1">*</span>}
+                        </Label>
+                        {field.type === 'text' && (
+                          <Input placeholder={field.placeholder} />
+                        )}
+                        {field.type === 'textarea' && (
+                          <Textarea placeholder={field.placeholder} rows={4} />
+                        )}
+                        {field.type === 'select' && (
+                          <Select>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select an option" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {field.options?.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {field.type === 'checkbox' && (
+                          <div className="flex items-center space-x-2">
+                            <input type="checkbox" id={field.id} />
+                            <Label htmlFor={field.id}>{field.label}</Label>
+                          </div>
+                        )}
+                        {field.description && (
+                          <p className="text-sm text-gray-500">{field.description}</p>
+                        )}
+                      </div>
+                    ))
+                  )}
+                  <Button>Submit</Button>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default FormBuilder;

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { v4 as uuidv4 } from 'uuid';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Navbar } from '@/components/Navbar';
@@ -19,6 +20,29 @@ const Dashboard = () => {
   const [newFormName, setNewFormName] = useState('');
   const [newFormEmail, setNewFormEmail] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Generate a URL-friendly slug from a string
+  const generateSlug = (str: string): string => {
+    return str
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, '') // Remove special characters
+      .replace(/\s+/g, '-')      // Replace spaces with -
+      .replace(/--+/g, '-')      // Replace multiple - with single -
+      .trim()
+      .substring(0, 50);         // Limit length
+  };
+
+  // Generate a short ID from a UUID
+  const generateShortId = (uuid: string): string => {
+    return uuid.split('-')[0];
+  };
+
+  // Get form URL with the new format
+  const getFormUrl = (form: any) => {
+    const slug = generateSlug(form.name || 'form');
+    const shortId = generateShortId(form.id);
+    return `/forms/${slug}-${shortId}/edit`;
+  };
 
   const { data: forms, isLoading } = useQuery({
     queryKey: ['forms', user?.id],
@@ -176,13 +200,13 @@ const Dashboard = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <Button 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={() => navigate(`/forms/${form.id}/edit`)}
+                  <Link
+                    key={form.id}
+                    to={getFormUrl(form)}
+                    className="block p-4 border rounded-lg hover:bg-accent transition-colors"
                   >
                     Edit Form
-                  </Button>
+                  </Link>
                   <Button 
                     variant="outline" 
                     className="w-full"

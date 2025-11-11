@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, ReactElement } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -112,6 +112,7 @@ interface FileField extends BaseFormField {
   accept?: string;
   multiple?: boolean;
   maxSize?: number; // in bytes
+  placeholder?: string;
 }
 
 // Calculation field type
@@ -165,7 +166,7 @@ interface FormSettings {
   options?: SelectOption[];
 }
 
-const FormBuilder = (): JSX.Element => {
+const FormBuilder = (): ReactElement => {
   // State for form fields and settings
   const [fields, setFields] = useState<FormField[]>([]);
   const [settings, setSettings] = useState<FormSettings>({
@@ -616,7 +617,7 @@ const FormBuilder = (): JSX.Element => {
                           <Input
                             id={field.id}
                             type={field.type}
-                            placeholder={'placeholder' in field ? field.placeholder : undefined}
+                            placeholder={'placeholder' in field ? field.placeholder : ''}
                             disabled
                           />
                         )}
