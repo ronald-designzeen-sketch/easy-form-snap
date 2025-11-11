@@ -93,6 +93,7 @@ const FormBuilder = () => {
   };
 
   const generateEmbedCode = () => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const code = `<!-- FormSaaS Embed Code -->
 <div id="formsaas-${id}"></div>
 <script>
@@ -139,7 +140,7 @@ const FormBuilder = () => {
     data.__timestamp = Date.now().toString();
     
     try {
-      const response = await fetch('${window.location.origin}/api/submit/${id}', {
+      const response = await fetch('${supabaseUrl}/functions/v1/submit-form/${id}', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
