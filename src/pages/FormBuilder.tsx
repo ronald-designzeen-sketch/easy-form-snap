@@ -37,7 +37,8 @@ import {
   X, 
   Loader2,
   Eye,
-  GripVertical
+  GripVertical,
+  Pencil
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -253,6 +254,7 @@ const FormBuilder = (): JSX.Element => {
       <Card>
         <CardHeader>
           <CardTitle>Edit Field</CardTitle>
+          <CardDescription>Configure the selected field properties</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -564,7 +566,7 @@ const FormBuilder = (): JSX.Element => {
               <Card>
                 <CardHeader>
                   <CardTitle>Form Fields</CardTitle>
-                  <CardDescription>Add and configure form fields</CardDescription>
+                  <CardDescription>Click on any field to edit its properties</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {fields.length === 0 ? (
@@ -576,16 +578,21 @@ const FormBuilder = (): JSX.Element => {
                       {fields.map((field, index) => (
                         <div
                           key={field.id}
-                          className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-accent ${
-                            selectedFieldIndex === index ? 'bg-accent' : ''
+                          className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                            selectedFieldIndex === index 
+                              ? 'border-primary bg-primary/5 shadow-sm' 
+                              : 'border-border hover:border-primary/50 hover:bg-accent/50'
                           }`}
                           onClick={() => setSelectedFieldIndex(index)}
                         >
-                          <div className="flex items-center space-x-2">
-                            <GripVertical className="h-4 w-4 text-muted-foreground" />
+                          <div className="flex items-center space-x-3">
+                            <GripVertical className="h-5 w-5 text-muted-foreground" />
                             <div>
-                              <div className="font-medium">{field.label}</div>
-                              <div className="text-sm text-muted-foreground capitalize">{field.type}</div>
+                              <div className="font-medium text-base">{field.label}</div>
+                              <div className="text-sm text-muted-foreground capitalize flex items-center gap-2">
+                                {field.type}
+                                {field.required && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">Required</span>}
+                              </div>
                             </div>
                           </div>
                           <Button
@@ -593,7 +600,9 @@ const FormBuilder = (): JSX.Element => {
                             size="icon"
                             onClick={(e) => {
                               e.stopPropagation();
-                              deleteField(index);
+                              if (confirm(`Delete "${field.label}"?`)) {
+                                deleteField(index);
+                              }
                             }}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
@@ -626,7 +635,23 @@ const FormBuilder = (): JSX.Element => {
               </Card>
             </div>
 
-            <div>{renderFieldEditor()}</div>
+            <div>
+              {selectedFieldIndex !== null && fields[selectedFieldIndex] ? (
+                renderFieldEditor()
+              ) : (
+                <Card className="h-full">
+                  <CardContent className="flex flex-col items-center justify-center py-20 text-center">
+                    <div className="mb-4 rounded-full bg-primary/10 p-4">
+                      <Pencil className="h-8 w-8 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-semibold mb-2">No Field Selected</h3>
+                    <p className="text-muted-foreground max-w-sm">
+                      Click on any field from the list to edit its properties, or add a new field to get started.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </div>
         </TabsContent>
 

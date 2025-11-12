@@ -200,13 +200,13 @@ const Dashboard = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <Link
-                    key={form.id}
-                    to={getFormUrl(form)}
-                    className="block p-4 border rounded-lg hover:bg-accent transition-colors"
+                  <Button 
+                    variant="default" 
+                    className="w-full"
+                    onClick={() => navigate(getFormUrl(form))}
                   >
                     Edit Form
-                  </Link>
+                  </Button>
                   <Button 
                     variant="outline" 
                     className="w-full"
