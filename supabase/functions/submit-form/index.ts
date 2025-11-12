@@ -77,25 +77,51 @@ const detectSpam = (data: SubmissionData, ip: string): { isSpam: boolean; reason
   };
 };
 
-const sendNotificationEmail = async (formName: string, notificationEmail: string, submissionData: any, submissionId: string) => {
+const sendNotificationEmail = async (
+  formName: string, 
+  notificationEmail: string, 
+  submissionData: any, 
+  submissionId: string,
+  formDefinition: any[],
+  emailTemplate?: string
+) => {
   try {
-    const dataHtml = Object.entries(submissionData)
+    // Create field mapping from definition
+    const fieldMap = new Map(
+      formDefinition.map(field => [field.id, field.label])
+    );
+
+    // Generate fields HTML with labels
+    const fieldsHtml = Object.entries(submissionData)
       .filter(([key]) => !key.startsWith('__'))
-      .map(([key, value]) => `<p><strong>${key}:</strong> ${JSON.stringify(value)}</p>`)
+      .map(([key, value]) => {
+        const label = fieldMap.get(key) || key;
+        const displayValue = typeof value === 'object' ? JSON.stringify(value) : value;
+        return `<p><strong>${label}:</strong> ${displayValue}</p>`;
+      })
       .join('');
+
+    // Use custom template or default
+    const defaultTemplate = `<h2>New Form Submission</h2>
+<p>You have received a new submission for your form: <strong>{{formName}}</strong></p>
+<hr />
+{{fields}}
+<hr />
+<p style="color: #666; font-size: 12px;">Submission ID: {{submissionId}}</p>`;
+
+    const template = emailTemplate || defaultTemplate;
+    
+    // Replace placeholders
+    const html = template
+      .replace(/\{\{formName\}\}/g, formName)
+      .replace(/\{\{fields\}\}/g, fieldsHtml)
+      .replace(/\{\{submissionId\}\}/g, submissionId);
     
     const { data, error } = await resend.emails.send({
       from: "FormSaaS <onboarding@resend.dev>",
       to: [notificationEmail],
       subject: `New submission for ${formName}`,
-      html: `
-        <h2>New Form Submission</h2>
-        <p>You have received a new submission for your form: <strong>${formName}</strong></p>
-        <hr />
-        ${dataHtml}
-        <hr />
-        <p style="color: #666; font-size: 12px;">Submission ID: ${submissionId}</p>
-      `,
+      html,
     });
 
     await supabase.from('email_logs').insert({
@@ -202,7 +228,9 @@ serve(async (req: Request) => {
         form.name,
         form.notification_email,
         cleanPayload,
-        submission.id
+        submission.id,
+        form.definition || [],
+        form.email_template
       ).catch(error => console.error('Background email error:', error));
     }
 

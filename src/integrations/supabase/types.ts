@@ -50,6 +50,7 @@ export type Database = {
         Row: {
           created_at: string | null
           definition: Json
+          email_template: string | null
           id: string
           is_active: boolean | null
           name: string
@@ -60,6 +61,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           definition?: Json
+          email_template?: string | null
           id?: string
           is_active?: boolean | null
           name: string
@@ -70,6 +72,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           definition?: Json
+          email_template?: string | null
           id?: string
           is_active?: boolean | null
           name?: string
