@@ -230,7 +230,6 @@ MIT License - Feel free to use for personal or commercial projects.
 
 ## 🎓 Learning Resources
 
-- [Lovable Documentation](https://docs.lovable.dev/)
 - [Supabase Docs](https://supabase.com/docs)
 - [Resend API Docs](https://resend.com/docs)
 - [React Documentation](https://react.dev)
@@ -245,4 +244,3 @@ MIT License - Feel free to use for personal or commercial projects.
 
 ---
 
-Built with ❤️ using Lovable Cloud
